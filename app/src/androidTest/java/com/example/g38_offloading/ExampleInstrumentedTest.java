@@ -1,4 +1,4 @@
-package com.example.masterapplication;
+package com.example.g38_offloading;
 
 import android.content.Context;
 
