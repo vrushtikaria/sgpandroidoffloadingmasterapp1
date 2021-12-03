@@ -12,6 +12,7 @@
         android:layout_height="26dp"
         android:layout_marginStart="24dp"
         android:text="My Location: -"
+        android:textColor="#3F51B5"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textBattery" />
 
@@ -19,11 +20,11 @@
         android:id="@+id/scanBtn"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
+        android:layout_marginTop="16dp"
         android:text="Scan for slave devices"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/textLocation" />
 
     <Button
         android:id="@+id/sendBtn"
@@ -39,19 +40,19 @@
     <ListView
         android:id="@+id/listViewDevices"
         style="@style/Widget.AppCompat.ListView"
-        android:layout_width="315dp"
-        android:layout_height="118dp"
-        android:layout_marginTop="8dp"
+        android:layout_width="240dp"
+        android:layout_height="100dp"
+        android:layout_marginTop="16dp"
         android:background="#ECECEC"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.635"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textView4" />
+        app:layout_constraintTop_toBottomOf="@+id/scanBtn" />
 
     <TextView
         android:id="@+id/statusText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
         android:text="-"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -59,15 +60,14 @@
 
     <TextView
         android:id="@+id/infoText"
-        android:layout_width="318dp"
-        android:layout_height="129dp"
-        android:layout_marginTop="32dp"
+        android:layout_width="313dp"
+        android:layout_height="74dp"
         android:background="#9AEADAFF"
         app:layout_constraintBottom_toTopOf="@+id/matrixSize"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.494"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/statusText" />
+        app:layout_constraintTop_toBottomOf="@+id/slaveBatteryButton" />
 
     <EditText
         android:id="@+id/matrixSize"
@@ -84,22 +84,57 @@
 
     <TextView
         android:id="@+id/textView4"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="40dp"
-        android:layout_marginTop="24dp"
+        android:layout_width="62dp"
+        android:layout_height="42dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="20dp"
         android:text="Available devices:"
+        app:layout_constraintBottom_toTopOf="@+id/statusText"
+        app:layout_constraintEnd_toStartOf="@+id/listViewDevices"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textLocation" />
+        app:layout_constraintTop_toBottomOf="@+id/scanBtn" />
+
+    <TextView
+        android:id="@+id/textView"
+        android:layout_width="196dp"
+        android:layout_height="21dp"
+        android:text="Information log:"
+        android:textAlignment="center"
+        app:layout_constraintBottom_toTopOf="@+id/infoText"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <TextView
         android:id="@+id/textBattery"
         android:layout_width="356dp"
         android:layout_height="25dp"
         android:layout_marginStart="24dp"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="24dp"
         android:text="My Battery: -"
+        android:textColor="#3F51B5"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/scanBtn" />
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/slaveBatteryButton"
+        android:layout_width="117dp"
+        android:layout_height="60dp"
+        android:layout_marginStart="50dp"
+        android:layout_marginTop="24dp"
+        android:text="Show slave battery levels"
+        android:textSize="10sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/statusText" />
+
+    <Button
+        android:id="@+id/slaveLocationButton"
+        android:layout_width="117dp"
+        android:layout_height="60dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="60dp"
+        android:text="Show slave locations"
+        android:textSize="10sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/statusText" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

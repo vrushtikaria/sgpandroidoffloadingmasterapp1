@@ -27,12 +27,17 @@ import android.os.Message;
 import android.provider.Settings;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -58,14 +63,15 @@ import java.util.concurrent.TimeUnit;
 public class MainActivity extends AppCompatActivity {
 
     //Buttons, lists and other elements
-    Button scanButton,sendButton;
+    Button scanButton,sendButton, slaveBatteryButton, slaveLocationButton;
     ListView listViewDevices;
     TextView statusText;
     TextView textLocation;
     TextView textBattery;
-    String statusTextContent ="";
+    String statusTextContent = "";
     TextView infoBox;
     EditText matrixSize;
+    TextView info;
 
     String deviceName;
 
@@ -87,10 +93,11 @@ public class MainActivity extends AppCompatActivity {
     SendReceiveHandler sendReceive;
     DataConversionSerial dataConversionSerial;
 
-    //Maps to store slave details such as connection status, battery levels, rows etc.
+    //Maps to store slave details such as connection status, battery levels, location etc.
     Map<BluetoothSocket,ArrayList<String>> connection_status=new HashMap<BluetoothSocket, ArrayList<String>>(); //maintained at master to keep track of whether the slave was busy and free
-    Map<String,Integer> battery_final=new HashMap<String,Integer>(); //maintained at master to store batter level status of slaves once offloading is done
-    Map<String,Integer> battery_initial=new HashMap<String,Integer>(); //maintained at master to store the battery level status of slaves when they are connected
+    Map<String,Integer> battery_slave_delta =new HashMap<String,Integer>(); //battery level drop of slaves
+    Map<String,Integer> battery_slave_initial =new HashMap<String,Integer>(); //initial battery level of slaves
+    Map<String,String> location_slave_initial =new HashMap<String,String>();
     Map<Integer,Long> row_sent_time=new HashMap<Integer, Long>(); //maintained at master to check at what time row was sent to slave
     ArrayList<Integer> row_check=new ArrayList<Integer>(); //maintained at master to check what all rows are yet to be sent
     Map<Integer,String> outputRows_check=new HashMap<Integer, String>(); //maintained at master to check what all rows were received from slave
@@ -135,6 +142,8 @@ public class MainActivity extends AppCompatActivity {
 
         //Initialising Buttons, lists and other elements
         listViewDevices=(ListView) findViewById(R.id.listViewDevices);
+        slaveBatteryButton = (Button) findViewById(R.id.slaveBatteryButton);
+        slaveLocationButton = (Button) findViewById(R.id.slaveLocationButton);
         textBattery = (TextView) findViewById(R.id.textBattery);
         textLocation = (TextView) findViewById(R.id.textLocation);
         scanButton = (Button) findViewById(R.id.scanBtn);
@@ -142,6 +151,7 @@ public class MainActivity extends AppCompatActivity {
         statusText = (TextView) findViewById(R.id.statusText);
         matrixSize = (EditText) findViewById(R.id.matrixSize);
         infoBox = (TextView) findViewById(R.id.infoText);
+        info = (TextView) findViewById(R.id.info_popup);
         infoBox.setMovementMethod(ScrollingMovementMethod.getInstance());
 
         dataConversionSerial = new DataConversionSerial();
@@ -189,6 +199,82 @@ public class MainActivity extends AppCompatActivity {
                 bluetoothAdapter.startDiscovery();
                 IntentFilter intentFilterConnection=new IntentFilter(BluetoothDevice.ACTION_FOUND);
                 registerReceiver(myReceiver,intentFilterConnection);
+            }
+        });
+
+
+        slaveBatteryButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // inflate the layout of the popup window
+                LayoutInflater inflater = (LayoutInflater)
+                        getSystemService(LAYOUT_INFLATER_SERVICE);
+                View popupView = inflater.inflate(R.layout.popup, null);
+
+                // create the popup window
+                int width = LinearLayout.LayoutParams.WRAP_CONTENT;
+                int height = LinearLayout.LayoutParams.WRAP_CONTENT;
+                boolean focusable = true; // lets taps outside the popup also dismiss it
+                final PopupWindow popupWindow = new PopupWindow(popupView, width, height, focusable);
+
+                if (!battery_slave_initial.isEmpty()) {
+                    String information = "";
+                    for (Map.Entry<String, Integer> entry : battery_slave_initial.entrySet()) {
+                        String key = entry.getKey();
+                        Integer value = entry.getValue();
+                        information += key + ": " + Integer.toString(value) + "/n";
+                    }
+                    info.setText(information);
+                }
+
+                popupWindow.showAtLocation(popupView, Gravity.CENTER, 0, 0);
+
+                // dismiss the popup window when touched
+                popupView.setOnTouchListener(new View.OnTouchListener() {
+                    @Override
+                    public boolean onTouch(View v, MotionEvent event) {
+                        popupWindow.dismiss();
+                        return true;
+                    }
+                });
+
+            }
+        });
+
+        slaveLocationButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // inflate the layout of the popup window
+                LayoutInflater inflater = (LayoutInflater)
+                        getSystemService(LAYOUT_INFLATER_SERVICE);
+                View popupView = inflater.inflate(R.layout.popup, null);
+
+                // create the popup window
+                int width = LinearLayout.LayoutParams.WRAP_CONTENT;
+                int height = LinearLayout.LayoutParams.WRAP_CONTENT;
+                boolean focusable = true; // lets taps outside the popup also dismiss it
+                final PopupWindow popupWindow = new PopupWindow(popupView, width, height, focusable);
+
+                if (!location_slave_initial.isEmpty()) {
+                    String information = "";
+                    for (Map.Entry<String, String> entry : location_slave_initial.entrySet()) {
+                        String key = entry.getKey();
+                        String value = entry.getValue();
+                        information += key + ": " + value + "/n";
+                    }
+                    info.setText(information);
+                }
+
+                popupWindow.showAtLocation(popupView, Gravity.CENTER, 0, 0);
+
+                // dismiss the popup window when touched
+                popupView.setOnTouchListener(new View.OnTouchListener() {
+                    @Override
+                    public boolean onTouch(View v, MotionEvent event) {
+                        popupWindow.dismiss();
+                        return true;
+                    }
+                });
             }
         });
 
@@ -242,24 +328,17 @@ public class MainActivity extends AppCompatActivity {
                     inputs_B = new int[total_rowcount][total_rowcount];
                     output_Array = new int[total_rowcount][total_rowcount];
                     inputs_A = generateRandom(total_rowcount, total_rowcount);
-
-
                     inputs_B = generateRandom(total_rowcount, total_rowcount);
 
                     //Start sending messages to available slaves
-
                     try {
-
                         battery_level_start = battery_level_master;
                         start_time = System.nanoTime();
                         sendMessages();
                         broadcasting_started = 0;
-
-
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
-
                 }
                 //If there are not available devices display the message to master that no devices are available
                 else if(available_devices<=0)
@@ -571,6 +650,8 @@ public class MainActivity extends AppCompatActivity {
                     }
                     connection_status.remove(bluetoothSocket);
                     connected_socket.remove(bluetoothSocket);
+                    location_slave_initial.remove(bluetoothSocket);
+                    battery_slave_initial.remove(bluetoothSocket);
 
                 }
                 e.printStackTrace();
@@ -605,6 +686,9 @@ public class MainActivity extends AppCompatActivity {
                         }
                         connection_status.remove(bluetoothSocket);
                         connected_socket.remove(bluetoothSocket);
+                        location_slave_initial.remove(bluetoothSocket);
+                        battery_slave_initial.remove(bluetoothSocket);
+
                     }
 
                     e.printStackTrace();
@@ -635,6 +719,8 @@ public class MainActivity extends AppCompatActivity {
                         }
                         connection_status.remove(bluetoothSocket);
                         connected_socket.remove(bluetoothSocket);
+                        location_slave_initial.remove(bluetoothSocket);
+                        battery_slave_initial.remove(bluetoothSocket);
                     }
                     e.printStackTrace();
                     Message message=Message.obtain();
@@ -806,7 +892,7 @@ public class MainActivity extends AppCompatActivity {
                         if (o instanceof String) {
                             String tempMsg = (String) o;
                             String[] messages = tempMsg.split(":");
-                            //If batter level low message is being received from slave disconnect to that slave and remove that slave from connected devices
+                            //If battery level low message is being received from slave disconnect to that slave and remove that slave from connected devices
                             if (messages[2].equals("Batter level is low")) {
                                 ArrayList<String> temp = new ArrayList<>();
                                 ArrayList<String> temp1 = new ArrayList<>();
@@ -817,9 +903,10 @@ public class MainActivity extends AppCompatActivity {
                                 for (BluetoothSocket key : connection_status.keySet()) {
                                     if (temp.equals(connection_status.get(key)) || temp1.equals(connection_status.get(key))) {
                                         available_devices--;
-                                        System.out.println("Available devices count inside battery level" + available_devices);
                                         connected_socket.remove(key);
                                         connection_status.remove(key);
+                                        location_slave_initial.remove(key);
+                                        battery_slave_initial.remove(key);
                                         Toast.makeText(getApplicationContext(), "Removing device" + connected_socket.size(), Toast.LENGTH_LONG).show();
                                         battery_status += "Batter level is low at " + messages[0] + " hence disconnected" + "\n";
                                         infoBox.setText(battery_status);
@@ -851,7 +938,8 @@ public class MainActivity extends AppCompatActivity {
                                 Otherwise slave has sent just it's battery level stats to master
                                  */
                             else {
-                                if (!battery_initial.containsKey(messages[0])) {
+                                //if the battery is not in the Map already
+                                if (!battery_slave_initial.containsKey(messages[0])) {
                                     battery_status += messages[0] + ":" + messages[1] + ":" + messages[2] + "\n";
                                     infoBox.setText(battery_status.trim());
                                     //If slave is connecting to master for the first time slave will send it's battery level information and GPS location to master
@@ -860,7 +948,8 @@ public class MainActivity extends AppCompatActivity {
 
                                         //if slave is within 0.1 mile radius then only connect
                                         if (dist <= 0.1) {
-                                            battery_initial.put(messages[0], Integer.parseInt(messages[2]));
+                                            battery_slave_initial.put(messages[0], Integer.parseInt(messages[2]));
+                                            location_slave_initial.put(messages[0], messages[4]);
                                         }
                                         //otherwise disconnect from slave
                                         else {
@@ -878,6 +967,8 @@ public class MainActivity extends AppCompatActivity {
                                                     Toast.makeText(getApplicationContext(), "Device too far....so disconnecting", Toast.LENGTH_LONG).show();
                                                     connection_status.remove(socket);
                                                     connected_socket.remove(socket);
+                                                    location_slave_initial.remove(socket);
+                                                    battery_slave_initial.remove(socket);
                                                     available_devices--;
                                                 }
                                             }
@@ -887,14 +978,12 @@ public class MainActivity extends AppCompatActivity {
                                     }
                                     //If slave is connecting to master for the first time slave will send it's battery level information and it hasn't sent it's GPS location
                                     else {
-                                        battery_initial.put(messages[0], Integer.parseInt(messages[2]));
+                                        battery_slave_initial.put(messages[0], Integer.parseInt(messages[2]));
                                     }
-
-
                                 }
                                 //otherwise slave is sending it's battery stats post completion of offloading so that master can check the batter level drop at slaves
-                                if (battery_initial.containsKey(messages[0]) && output_rowcount == total_rowcount) {
-                                    battery_final.put(messages[0], Math.abs(battery_initial.get(messages[0]) - Integer.parseInt(messages[2])));
+                                if (battery_slave_initial.containsKey(messages[0]) && output_rowcount == total_rowcount) {
+                                    battery_slave_delta.put(messages[0], Math.abs(battery_slave_initial.get(messages[0]) - Integer.parseInt(messages[2])));
                                 }
                             }
                         }
@@ -951,8 +1040,8 @@ public class MainActivity extends AppCompatActivity {
                                     }
                                 }
                                 output_print += "]\nBattery Levels drop at Slaves:\n";
-                                for (String server_device : battery_final.keySet()) {
-                                    output_print += server_device + " : " + battery_final.get(server_device) + "\n";
+                                for (String server_device : battery_slave_delta.keySet()) {
+                                    output_print += server_device + " : " + battery_slave_delta.get(server_device) + "\n";
                                 }
                                 output_print += "Battery Level drop at Master:" + batter_change_off + "\n";
                                 output_print += "Time taken by MobOff(ns)= " + (finish_time - start_time) + "\n";
@@ -973,7 +1062,7 @@ public class MainActivity extends AppCompatActivity {
                                 output_print += "Time taken without MobOff(ns)= " + (finish_time - start_time) + "\n";
                                 output_print += "Battery Level drop without offloading at Master:" + (battery_level_start - battery_level_master);
                                 //Set all the variables to null so that master will be available for next offloading
-                                battery_final = new HashMap<String, Integer>();
+                                battery_slave_delta = new HashMap<String, Integer>();
                                 outputRows_check = new HashMap<Integer, String>();
                                 row_check = new ArrayList<Integer>();
                                 row_sent_time = new HashMap<Integer, Long>();
