@@ -38,6 +38,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.PopupWindow;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -63,8 +64,8 @@ import java.util.concurrent.TimeUnit;
 public class MainActivity extends AppCompatActivity {
 
     //Buttons, lists and other elements
-    Button scanButton, sendButton, slaveBatteryButton, slaveLocationButton;
-    ListView listViewDevices;
+    Button scanButton, sendButton, slaveBatteryButton, slaveLocationButton, viewButton;
+    Spinner listViewDevices;
     TextView statusText;
     TextView textLocation;
     TextView textBattery;
@@ -73,9 +74,9 @@ public class MainActivity extends AppCompatActivity {
     EditText matrixSize;
     TextView info;
 
-    String locInfo = "";
-
     String deviceName;
+    String[] strings;
+    int temp_count=0;
 
     //variables for location
     FusedLocationProviderClient mFusedLocationClient;
@@ -112,7 +113,6 @@ public class MainActivity extends AppCompatActivity {
     String battery_status = "";
 
     //connections status values
-    static final int STATE_LISTENING = 1;
     static final int STATE_CONNECTING = 2;
     static final int STATE_CONNECTED = 3;
     static final int STATE_CONNECTION_FAILED = 4;
@@ -144,9 +144,10 @@ public class MainActivity extends AppCompatActivity {
         actionBar.setIcon(R.mipmap.ic_launcher);
 
         //Initialising Buttons, lists and other elements
-        listViewDevices = (ListView) findViewById(R.id.listViewDevices);
+        listViewDevices = (Spinner) findViewById(R.id.listViewDevices);
         slaveBatteryButton = (Button) findViewById(R.id.slaveBatteryButton);
         slaveLocationButton = (Button) findViewById(R.id.slaveLocationButton);
+        viewButton = (Button) findViewById(R.id.viewBtn);
         textBattery = (TextView) findViewById(R.id.textBattery);
         textLocation = (TextView) findViewById(R.id.textLocation);
         scanButton = (Button) findViewById(R.id.scanBtn);
@@ -155,12 +156,15 @@ public class MainActivity extends AppCompatActivity {
         matrixSize = (EditText) findViewById(R.id.matrixSize);
         infoBox = (TextView) findViewById(R.id.infoText);
         infoBox.setMovementMethod(ScrollingMovementMethod.getInstance());
+        viewButton.setEnabled(false);
 
         dataConversionSerial = new DataConversionSerial();
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         // method to get the location
         getLastLocation();
 
+        arrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new ArrayList<String>());
+        listViewDevices.setAdapter(arrayAdapter);
 
         //Below will enable the bluetooth in the device in case it's disables
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -194,6 +198,8 @@ public class MainActivity extends AppCompatActivity {
         scanButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                temp_count=0;
+                statusText.setText("-");
                 stringArrayList = new ArrayList<>();
                 bluetoothAdapter.startDiscovery();
                 IntentFilter intentFilterConnection = new IntentFilter(BluetoothDevice.ACTION_FOUND);
@@ -286,15 +292,23 @@ public class MainActivity extends AppCompatActivity {
 
 
         //to process what to do on selecting an available device from the list
-        listViewDevices.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        listViewDevices.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                temp_count++;
+                if (temp_count!=1) {
+                    ConnectSlave connectSlave = new ConnectSlave(btDevices[position]);
+                    connectSlave.start();
+                    statusText.setText("Connecting");
+                }
+            }
 
-                ConnectSlave connectSlave = new ConnectSlave(btDevices[position]);
-                connectSlave.start();
-                statusText.setText("Connecting");
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+
             }
         });
+
 
         sendButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -316,8 +330,8 @@ public class MainActivity extends AppCompatActivity {
                     available_devices = 0;
 
                 } else {
-                    //If matrix size is entered with in the limits of 2 and 13 and if there are available devices master is ready to offload
-                    if (matrixSize.getText().toString() != null && !matrixSize.getText().toString().isEmpty() && available_devices > 0 && Integer.parseInt(matrixSize.getText().toString()) < 13 && Integer.parseInt(matrixSize.getText().toString()) >= 2) {
+                    //If matrix size is entered with in the limits of 2 and 100 and if there are available devices master is ready to offload
+                    if (matrixSize.getText().toString() != null && !matrixSize.getText().toString().isEmpty() && available_devices > 0 && Integer.parseInt(matrixSize.getText().toString()) <= 12 && Integer.parseInt(matrixSize.getText().toString()) >= 2) {
                         sendButton.setEnabled(false);
                         sendButton.setText("Processing");
                         received_rows = 0;
@@ -385,7 +399,7 @@ public class MainActivity extends AppCompatActivity {
                         stringArrayList.add(device);
                     }
 
-                    String[] strings = new String[stringArrayList.size()];
+                    strings = new String[stringArrayList.size()];
                     btDevices = new BluetoothDevice[stringArrayList.size()];
                     int index = 0;
 
@@ -396,8 +410,10 @@ public class MainActivity extends AppCompatActivity {
                             index++;
                         }
 
-                        arrayAdapter = new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_list_item_1, strings);
-                        listViewDevices.setAdapter(arrayAdapter);
+                        //arrayAdapter = new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_list_item_1, strings);
+                        arrayAdapter.clear();
+                        arrayAdapter.addAll(strings);
+                        arrayAdapter.notifyDataSetChanged();
                     }
                 }
 
@@ -439,31 +455,26 @@ public class MainActivity extends AppCompatActivity {
             connection_status = new HashMap<BluetoothSocket, ArrayList<String>>();
             available_devices = 0;
             return;
-
         }
         //Checks if there are any free slaves to offload
         if (available_devices > 0) {
+
             for (BluetoothSocket socket : connected_socket) {
                 //sends if there are rows left to send
-                if (socket != null && connection_status.get(socket).get(1) == "free" && received_rows != total_rows) {
+                if (socket != null && connection_status.get(socket).get(1) == "free" && received_rows != total_rows && rows_left.size() > 0) {
                     try {
-                        if (rows_left.size() > 0) {
                             sendReceive = new SendReceiveHandler(socket);
                             sendReceive.start();
                             ArrayList<String> temp = connection_status.get(socket);
                             temp.set(1, "busy");
                             available_devices--;
                             connection_status.put(socket, temp);
-                            Log.d("MySocket", connection_status.get(socket).get(1));
                             int temp_row = rows_left.get(0);
                             rows_left.remove(0);
                             row_sent_time.put(temp_row, System.nanoTime());
                             serialDecoder request = new serialDecoder(inputs_A[temp_row], inputs_B, temp_row);
-
                             sendReceive.write(dataConversionSerial.objectToByteArray(request));
 
-
-                        }
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -631,7 +642,7 @@ public class MainActivity extends AppCompatActivity {
 
     //--------------------------------------------------------------------------------------------------------
 
-    //Get the distance between two coordinates (in miles)
+    //Get the distance between two coordinates (in kms)
     private static double calc_distance(double lat1, double lon1, double lat2, double lon2) {
         if ((lat1 == lat2) && (lon1 == lon2)) {
             return 0;
@@ -640,7 +651,7 @@ public class MainActivity extends AppCompatActivity {
             double dist = Math.sin(Math.toRadians(lat1)) * Math.sin(Math.toRadians(lat2)) + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) * Math.cos(Math.toRadians(theta));
             dist = Math.acos(dist);
             dist = Math.toDegrees(dist);
-            dist = dist * 60 * 1.1515;
+            dist = dist * 60 * 1.1515 * 1.609344;
             return (dist);
         }
     }
@@ -652,9 +663,6 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public boolean handleMessage(@NonNull Message msg) {
             switch (msg.what) {
-                case STATE_LISTENING:
-                    statusText.setText("Listening");
-                    break;
                 case STATE_CONNECTING:
                     statusText.setText("Connecting");
                     break;
@@ -716,8 +724,30 @@ public class MainActivity extends AppCompatActivity {
                                         break;
                                     }
                                 }
-
                             }
+
+                            //If slave denied offloading
+                            else if (messages[1].equals("Denied")){
+                                ArrayList<String> temp = new ArrayList<>();
+                                ArrayList<String> temp1 = new ArrayList<>();
+                                temp.add(messages[0]);
+                                temp.add("busy");
+                                temp1.add(messages[0]);
+                                temp1.add("free");
+                                for (BluetoothSocket key : connection_status.keySet()) {
+                                    if (temp.equals(connection_status.get(key)) || temp1.equals(connection_status.get(key))) {
+                                        available_devices--;
+                                        connected_socket.remove(key);
+                                        connection_status.remove(key);
+                                        location_slave_initial.remove(key);
+                                        battery_slave_initial.remove(key);
+                                        Toast.makeText(getApplicationContext(),messages[0]+" denied offloading", Toast.LENGTH_LONG).show();
+                                        statusText.setText("Disconnected");
+                                        break;
+                                    }
+                                }
+                            }
+
                             //if slave has sent a msg to master asking it to set it to free master will set the availability status of slave to free.
                             else if (messages[2].equals("SetMeFree")) {
                                 ArrayList<String> temp = new ArrayList<>();
@@ -746,8 +776,8 @@ public class MainActivity extends AppCompatActivity {
                                     if (messages.length > 3) {
                                         Double dist = calc_distance(parseDouble(myLatitude), Double.parseDouble(myLongitude), Double.parseDouble(messages[4].split(",")[0]), Double.parseDouble(messages[4].split(",")[1]));
 
-                                        //if slave is within 0.1 mile radius then only connect
-                                        if (dist <= 0.1) {
+                                        //if slave is within 0.2 km radius then only connect
+                                        if (dist <= 0.2) {
                                             battery_slave_initial.put(messages[0], Integer.parseInt(messages[2]));
                                             location_slave_initial.put(messages[0], messages[4]);
                                         }
@@ -793,11 +823,11 @@ public class MainActivity extends AppCompatActivity {
                             ArrayList<String> temp = new ArrayList<>();
                             //if output result doesn't contain the row result sent by slave it will be stored in output result
                             if (!rows_received_from_slave.containsKey(tempMsg.getRow())) {
-                                statusTextContent += tempMsg.getDeviceName() + ": Received row " + tempMsg.getRow() + ": " + Arrays.toString(tempMsg.getrowResult()) + "\n";
+                                statusTextContent += "Received row " + tempMsg.getRow() + "from: " + tempMsg.getDeviceName() +  "\n";
 
                                 //add here
 
-                                infoBox.setText(statusTextContent.trim());
+                                //infoBox.setText(statusTextContent.trim());
                                 output_matrix[tempMsg.getRow()] = tempMsg.getrowResult();
                                 received_rows++;
                                 rows_received_from_slave.put(tempMsg.getRow(), "received");
@@ -823,6 +853,7 @@ public class MainActivity extends AppCompatActivity {
                                     .  Battery level drop at master for matrix multiplication without offloading
                                  */
                             if (rows_received_from_slave.size() == total_rows) {
+                                viewButton.setEnabled(false);
                                 finish_time = System.nanoTime();
                                 result_receive_time_check = 1;
                                 sendButton.setEnabled(true);
@@ -867,7 +898,7 @@ public class MainActivity extends AppCompatActivity {
                                 finish_time = System.nanoTime();
 
                                 output_print += "Time taken without MobOff(ns)= " + (finish_time - start_time) + "\n";
-                                output_print += "Battery Level drop without offloading at Master:" + (battery_level_start_master - battery_level_master);
+                                //output_print += "Battery Level drop without offloading at Master:" + (battery_level_start_master - battery_level_master);
                                 //Set all the variables to null so that master will be available for next offloading
                                 battery_slave_delta = new HashMap<String, Integer>();
                                 rows_received_from_slave = new HashMap<Integer, String>();
@@ -876,9 +907,7 @@ public class MainActivity extends AppCompatActivity {
                                 statusTextContent = "";
                                 battery_status = "";
 
-
-                                infoBox.setText("Output received from slaves: \n" + output_print.trim());
-
+                                //infoBox.setText("Output received from slaves: \n" + output_print.trim());
 
                             }
                             //if there are rows that are yet to be calculated send that rows to available devices
@@ -894,7 +923,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                     break;
                 case STATE_BATTERY_LOW:
-                    statusText.setText("Battery Low Can't connect");
+                    statusText.setText("Battery low Can't connect");
                     break;
             }
             return true;

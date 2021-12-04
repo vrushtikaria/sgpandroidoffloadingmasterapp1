@@ -12,7 +12,7 @@
         android:layout_height="26dp"
         android:layout_marginStart="24dp"
         android:text="My Location: -"
-        android:textColor="#3F51B5"
+        android:textColor="#00BCD4"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textBattery" />
 
@@ -30,29 +30,28 @@
         android:id="@+id/sendBtn"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="24dp"
         android:text="Send Matrix"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/viewBtn"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.36"
+        app:layout_constraintHorizontal_bias="0.603"
         app:layout_constraintStart_toEndOf="@+id/matrixSize" />
 
-    <ListView
-        android:id="@+id/listViewDevices"
-        style="@style/Widget.AppCompat.ListView.Menu"
-        android:layout_width="240dp"
-        android:layout_height="100dp"
-        android:layout_marginTop="16dp"
-        android:background="#ECECEC"
+    <Button
+        android:id="@+id/viewBtn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:text="View Matrix"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.635"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/scanBtn" />
+        app:layout_constraintHorizontal_bias="0.593"
+        app:layout_constraintStart_toEndOf="@+id/matrixSize" />
 
     <TextView
         android:id="@+id/statusText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
         android:text="-"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -61,9 +60,9 @@
     <TextView
         android:id="@+id/infoText"
         android:layout_width="313dp"
-        android:layout_height="74dp"
+        android:layout_height="150dp"
+        android:layout_marginTop="40dp"
         android:background="#9AEADAFF"
-        app:layout_constraintBottom_toTopOf="@+id/matrixSize"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.494"
         app:layout_constraintStart_toStartOf="parent"
@@ -73,8 +72,8 @@
         android:id="@+id/matrixSize"
         android:layout_width="118dp"
         android:layout_height="40dp"
-        android:layout_marginStart="36dp"
-        android:layout_marginBottom="24dp"
+        android:layout_marginStart="48dp"
+        android:layout_marginBottom="44dp"
         android:ems="10"
         android:hint="Enter Matrix size"
         android:inputType="textPersonName"
@@ -84,13 +83,13 @@
 
     <TextView
         android:id="@+id/textView4"
-        android:layout_width="62dp"
-        android:layout_height="42dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="20dp"
+        android:layout_width="132dp"
+        android:layout_height="33dp"
+        android:layout_marginStart="48dp"
+        android:layout_marginTop="44dp"
         android:text="Available devices:"
-        app:layout_constraintBottom_toTopOf="@+id/statusText"
-        app:layout_constraintEnd_toStartOf="@+id/listViewDevices"
+        android:textAlignment="center"
+        app:flow_verticalAlign="center"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/scanBtn" />
 
@@ -109,9 +108,9 @@
         android:layout_width="356dp"
         android:layout_height="25dp"
         android:layout_marginStart="24dp"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="32dp"
         android:text="My Battery: -"
-        android:textColor="#3F51B5"
+        android:textColor="#00BCD4"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -120,7 +119,7 @@
         android:layout_width="117dp"
         android:layout_height="60dp"
         android:layout_marginStart="50dp"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="32dp"
         android:text="Show slave battery levels"
         android:textSize="10sp"
         app:layout_constraintStart_toStartOf="parent"
@@ -130,11 +129,22 @@
         android:id="@+id/slaveLocationButton"
         android:layout_width="117dp"
         android:layout_height="60dp"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="32dp"
         android:layout_marginEnd="60dp"
         android:text="Show slave locations"
         android:textSize="10sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/statusText" />
+
+    <Spinner
+        android:id="@+id/listViewDevices"
+        android:layout_width="150dp"
+        android:layout_height="34dp"
+        android:layout_marginTop="36dp"
+        android:background="#673AB7"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.382"
+        app:layout_constraintStart_toEndOf="@+id/textView4"
+        app:layout_constraintTop_toBottomOf="@+id/scanBtn" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
