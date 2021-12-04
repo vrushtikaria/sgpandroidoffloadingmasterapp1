@@ -73,6 +73,8 @@ public class MainActivity extends AppCompatActivity {
     EditText matrixSize;
     TextView info;
 
+    String locInfo = "";
+
     String deviceName;
 
     //variables for location
@@ -152,7 +154,6 @@ public class MainActivity extends AppCompatActivity {
         statusText = (TextView) findViewById(R.id.statusText);
         matrixSize = (EditText) findViewById(R.id.matrixSize);
         infoBox = (TextView) findViewById(R.id.infoText);
-        info = (TextView) findViewById(R.id.info_popup);
         infoBox.setMovementMethod(ScrollingMovementMethod.getInstance());
 
         dataConversionSerial = new DataConversionSerial();
@@ -208,21 +209,25 @@ public class MainActivity extends AppCompatActivity {
                 LayoutInflater inflater = (LayoutInflater)
                         getSystemService(LAYOUT_INFLATER_SERVICE);
                 View popupView = inflater.inflate(R.layout.popup, null);
-
+                info = (TextView) popupView.findViewById(R.id.info_popup);
+                info.setSingleLine(false);
+                String batInfo = "";
                 // create the popup window
                 int width = LinearLayout.LayoutParams.WRAP_CONTENT;
                 int height = LinearLayout.LayoutParams.WRAP_CONTENT;
                 boolean focusable = true; // lets taps outside the popup also dismiss it
                 final PopupWindow popupWindow = new PopupWindow(popupView, width, height, focusable);
-
+                info = (TextView) popupView.findViewById(R.id.info_popup);
                 if (!battery_slave_initial.isEmpty()) {
-                    String information = "";
                     for (Map.Entry<String, Integer> entry : battery_slave_initial.entrySet()) {
                         String key = entry.getKey();
                         Integer value = entry.getValue();
-                        information += key + ": " + Integer.toString(value) + "/n";
+                        batInfo += key + ": " + Integer.toString(value) + "\n\n";
+                        info.setText(batInfo);
                     }
-                    info.setText(information);
+                }
+                else{
+                    info.setText("No devices connected");
                 }
 
                 popupWindow.showAtLocation(popupView, Gravity.CENTER, 0, 0);
@@ -246,21 +251,24 @@ public class MainActivity extends AppCompatActivity {
                 LayoutInflater inflater = (LayoutInflater)
                         getSystemService(LAYOUT_INFLATER_SERVICE);
                 View popupView = inflater.inflate(R.layout.popup, null);
-
+                info = (TextView) popupView.findViewById(R.id.info_popup);
+                info.setSingleLine(false);
                 // create the popup window
                 int width = LinearLayout.LayoutParams.WRAP_CONTENT;
                 int height = LinearLayout.LayoutParams.WRAP_CONTENT;
                 boolean focusable = true; // lets taps outside the popup also dismiss it
                 final PopupWindow popupWindow = new PopupWindow(popupView, width, height, focusable);
-
+                String locInfo = "";
                 if (!location_slave_initial.isEmpty()) {
-                    String information = "";
                     for (Map.Entry<String, String> entry : location_slave_initial.entrySet()) {
                         String key = entry.getKey();
                         String value = entry.getValue();
-                        information += key + ": " + value + "/n";
+                        locInfo += key + ": " + value + "\n\n";
                     }
-                    info.setText(information);
+                    info.setText(locInfo);
+                }
+                else{
+                    info.setText("No devices connected");
                 }
 
                 popupWindow.showAtLocation(popupView, Gravity.CENTER, 0, 0);
@@ -733,8 +741,7 @@ public class MainActivity extends AppCompatActivity {
                             else {
                                 //if the battery is not in the Map already
                                 if (!battery_slave_initial.containsKey(messages[0])) {
-                                    battery_status += messages[0] + ":" + messages[1] + ":" + messages[2] + "\n";
-                                    infoBox.setText(battery_status.trim());
+                                    infoBox.setText("Connected to: "+ messages[0]);
                                     //If slave is connecting to master for the first time slave will send it's battery level information and GPS location to master
                                     if (messages.length > 3) {
                                         Double dist = calc_distance(parseDouble(myLatitude), Double.parseDouble(myLongitude), Double.parseDouble(messages[4].split(",")[0]), Double.parseDouble(messages[4].split(",")[1]));
