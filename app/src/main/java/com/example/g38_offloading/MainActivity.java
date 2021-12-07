@@ -54,6 +54,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -87,6 +89,7 @@ public class MainActivity extends AppCompatActivity {
     ArrayAdapter<String> btArrayAdapter;
     ArrayList<BluetoothDevice> btDeviceNameList = new ArrayList<>(); //maintains the list of available bt devices in proximity
     ArrayList<BluetoothSocket> btSocketList = new ArrayList<>();
+    ArrayList<BluetoothDevice> btConnected = new ArrayList<>();
     private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     SendReceiveHandler sendReceive;
     DataConversionSerial dataConversionSerial;
@@ -96,10 +99,13 @@ public class MainActivity extends AppCompatActivity {
     Map<String, Integer> battery_slave_delta = new HashMap<String, Integer>(); //battery level drop of slaves
     Map<String, Integer> battery_slave_initial = new HashMap<String, Integer>(); //initial battery level of slaves
     Map<String, String> location_slave_initial = new HashMap<String, String>(); //initial location of slaves
+    Map<String, Double> dist_slave_initial = new HashMap<String, Double>();
+    Map<String, Double> scoreForOffloadingPreference = new HashMap<String, Double>();
     Map<Integer, Long> row_sent_time = new HashMap<Integer, Long>(); //maintains time at which row was sent
     ArrayList<Integer> rows_left = new ArrayList<Integer>(); //maintains rows to be sent
     Map<Integer, String> rowsReceivedSlaveCheck = new HashMap<Integer, String>(); //maintains rows received from slave
     Map<Integer, String> rowSlaveMapping = new HashMap<Integer,String>();
+    Map<BluetoothDevice, BluetoothSocket> socketDeviceMap = new HashMap<>();
 
     //battery level related variables
     int battery_level_master = 0; ///battery level of the master
@@ -522,8 +528,9 @@ public class MainActivity extends AppCompatActivity {
         }
         //Checks if there are any free slaves to offload
         if (available_devices > 0) {
-
-            for (BluetoothSocket socket : btSocketList) {
+            Collections.sort(btConnected, new btComparator()); // to sort by score metric
+            for (BluetoothDevice device : btConnected) {
+                BluetoothSocket socket = socketDeviceMap.get(device);
                 //sends if there are rows left to send
                 if (socket != null && connection_status.get(socket).get(1) == "free" && received_rows != total_rows && rows_left.size() > 0) {
                     try {
@@ -543,11 +550,24 @@ public class MainActivity extends AppCompatActivity {
                         e.printStackTrace();
                     }
                 }
-
             }
         }
-
     }
+
+
+    // creates the comparator for comparing device score to give priority in offloading
+    class btComparator implements Comparator<BluetoothDevice> {
+
+        @Override
+        public int compare(BluetoothDevice o1, BluetoothDevice o2) {
+            if (scoreForOffloadingPreference.get(o1)>scoreForOffloadingPreference.get(o2))
+                return 1;
+            else
+                return -1;
+        }
+    }
+
+
 
     //receiver for rows from slave devices
     private Runnable offloadingReceiver = new Runnable() {
@@ -687,6 +707,8 @@ public class MainActivity extends AppCompatActivity {
                         temp.add("free");
                         available_devices++;
                         connection_status.put(socket, temp);
+                        socketDeviceMap.put(device, socket);
+                        btConnected.add(device);
                     }
                 } else {
                     Message message = Message.obtain();
@@ -719,6 +741,17 @@ public class MainActivity extends AppCompatActivity {
             return (dist);
         }
     }
+
+    //--------------------------------------------------------------------------------------------------------
+
+    //get a score based on location and battery
+
+    private static double scoreForOffloading (int bat, double dist){
+        double score = ((bat/100)*0.5) + ((0.2/dist)*0.5);
+        return score;
+    }
+
+
 
     //--------------------------------------------------------------------------------------------------------
 
@@ -806,6 +839,8 @@ public class MainActivity extends AppCompatActivity {
                                         if (dist <= 0.2) {
                                             battery_slave_initial.put(messages[0], Integer.parseInt(messages[2]));
                                             location_slave_initial.put(messages[0], messages[4]);
+                                            dist_slave_initial.put(messages[0],dist);
+                                            scoreForOffloadingPreference.put(messages[0], scoreForOffloading(Integer.parseInt(messages[2]), dist));
                                             Toast.makeText(getApplicationContext(),"Connected to: " + messages[0] ,Toast.LENGTH_LONG).show();
                                             String tempBtNames="";
                                             for (BluetoothSocket device1 : connection_status.keySet()) {
