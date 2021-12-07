@@ -4,32 +4,23 @@ import java.io.Serializable;
 
 public class serialDecoder implements Serializable {
 
-    private int[] a;
-    private int[][] b;
+    private static final long serialVersionUID = 6529685098267757690L;
+    private int[] rowResult;
     private int row;
+    private String deviceName;
 
-    //initialization
-    public serialDecoder(int[] a, int[][] b, int row) {
-        this.setA(a);
-        this.setB(b);
+    public serialDecoder(int[] rowResult, int row, String deviceName) {
+        this.setrowResult(rowResult);
         this.setRow(row);
+        this.setDeviceName(deviceName);
     }
 
-    //getter and setters
-    public int[] getA() {
-        return a;
+    public int[] getrowResult() {
+        return rowResult;
     }
 
-    public void setA(int[] a) {
-        this.a = a;
-    }
-
-    public int[][] getB() {
-        return b;
-    }
-
-    public void setB(int[][] b) {
-        this.b = b;
+    public void setrowResult(int[] rowResult) {
+        this.rowResult = rowResult;
     }
 
     public int getRow() {
@@ -39,4 +30,13 @@ public class serialDecoder implements Serializable {
     public void setRow(int row) {
         this.row = row;
     }
+
+    public String getDeviceName() {
+        return deviceName;
+    }
+
+    public void setDeviceName(String deviceName) {
+        this.deviceName = deviceName;
+    }
+
 }

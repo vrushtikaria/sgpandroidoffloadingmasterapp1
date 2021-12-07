@@ -2,11 +2,6 @@ package com.example.g38_offloading;
 
 import static java.lang.Double.parseDouble;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.ActionBar;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
@@ -26,21 +21,23 @@ import android.os.Looper;
 import android.os.Message;
 import android.provider.Settings;
 import android.text.method.ScrollingMovementMethod;
-import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ListView;
 import android.widget.PopupWindow;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
@@ -49,6 +46,8 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
+
+import org.w3c.dom.Text;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,19 +63,15 @@ import java.util.concurrent.TimeUnit;
 public class MainActivity extends AppCompatActivity {
 
     //Buttons, lists and other elements
-    Button scanButton, sendButton, slaveBatteryButton, slaveLocationButton, viewButton;
+    Button scanButton, sendButton, slaveBatteryButton, slaveLocationButton, viewReceivedButton, viewSentButton, viewPerformanceButton;
     Spinner listViewDevices;
-    TextView statusText;
-    TextView textLocation;
-    TextView textBattery;
+    TextView statusText, textLocation, textBattery, info, connectedDevices;
     String statusTextContent = "";
-    TextView infoBox;
     EditText matrixSize;
-    TextView info;
 
     String deviceName;
     String[] strings;
-    int temp_count=0;
+    int temp_count = 0;
 
     //variables for location
     FusedLocationProviderClient mFusedLocationClient;
@@ -84,15 +79,14 @@ public class MainActivity extends AppCompatActivity {
     String myLatitude, myLongitude;
 
     //variables for bluetooth connections
-    int REQUEST_ENABLE_BLUETOOTH = 1;
     BluetoothAdapter bluetoothAdapter;
     BluetoothDevice[] btDevices;
+    int REQUEST_ENABLE_BLUETOOTH = 1;
     long bt_connection_start_time = 0;
-    int available_devices = 0; //maintained at master to keep track of number of available slaves that were free
-    ArrayAdapter<String> arrayAdapter; //maintained at master to show list of available devices in list view
-    ArrayList<BluetoothDevice> stringArrayList = new ArrayList<>(); //maintains the list of connected devices
-    ArrayList<BluetoothSocket> connected_socket = new ArrayList<>(); //maintains the list of connected sockets
-    private static final String APP_NAME = "MobOffloading";
+    int available_devices = 0;
+    ArrayAdapter<String> btArrayAdapter;
+    ArrayList<BluetoothDevice> btDeviceNameList = new ArrayList<>(); //maintains the list of available bt devices in proximity
+    ArrayList<BluetoothSocket> btSocketList = new ArrayList<>();
     private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     SendReceiveHandler sendReceive;
     DataConversionSerial dataConversionSerial;
@@ -104,7 +98,8 @@ public class MainActivity extends AppCompatActivity {
     Map<String, String> location_slave_initial = new HashMap<String, String>(); //initial location of slaves
     Map<Integer, Long> row_sent_time = new HashMap<Integer, Long>(); //maintains time at which row was sent
     ArrayList<Integer> rows_left = new ArrayList<Integer>(); //maintains rows to be sent
-    Map<Integer, String> rows_received_from_slave = new HashMap<Integer, String>(); //maintains rows received from slave
+    Map<Integer, String> rowsReceivedSlaveCheck = new HashMap<Integer, String>(); //maintains rows received from slave
+    Map<Integer, String> rowSlaveMapping = new HashMap<Integer,String>();
 
     //battery level related variables
     int battery_level_master = 0; ///battery level of the master
@@ -113,26 +108,30 @@ public class MainActivity extends AppCompatActivity {
     String battery_status = "";
 
     //connections status values
-    static final int STATE_CONNECTING = 2;
-    static final int STATE_CONNECTED = 3;
-    static final int STATE_CONNECTION_FAILED = 4;
-    static final int STATE_MESSAGE_RECEIVED = 5;
-    static final int STATE_BATTERY_LOW = 6;
-    static final int STATE_DISCONNECTED = 7;
+    static final int CONNECTING = 2;
+    static final int CONNECTED = 3;
+    static final int CONNECTION_FAILED = 4;
+    static final int MESSAGE_RECEIVED = 5;
+    static final int BATTERY_LOW = 6;
+    static final int DISCONNECTED = 7;
 
     //matrix related variables
     int total_rows = 0; //total rows in matrix to be sent
     int received_rows = 0; //total rows received from slave devices
-    int result_receive_time_check = 1; //maintained at master so that if row result was not received even after 5 seconds from one slave it can be sent to other available slaves
+    int result_receive_time_check = 1; //if row result was not received after 5 seconds from one slave it can be sent to other available slaves
     int[][] inputs_A;
     int[][] inputs_B;
     int[][] output_matrix;
 
-    //performance monitoring variables
-    long start_time; //keeps track of time at which operation was started
-    long finish_time; //keeps track of time at which operation was completed
+    //performance monitoring variables (time)
+    long start_time_off;
+    long finish_time_off;
+    long start_time_master;
+    long finish_time_master;
 
     private Handler offloadingHandler = new Handler();  //handles the connection status and messages received
+
+    //--------------------------------------------------------------------------------------------------------
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -147,24 +146,27 @@ public class MainActivity extends AppCompatActivity {
         listViewDevices = (Spinner) findViewById(R.id.listViewDevices);
         slaveBatteryButton = (Button) findViewById(R.id.slaveBatteryButton);
         slaveLocationButton = (Button) findViewById(R.id.slaveLocationButton);
-        viewButton = (Button) findViewById(R.id.viewBtn);
+        viewReceivedButton = (Button) findViewById(R.id.viewBtnReceived);
+        viewSentButton = (Button) findViewById(R.id.viewBtnSent);
+        viewPerformanceButton = (Button) findViewById(R.id.viewBtnPerformance);
         textBattery = (TextView) findViewById(R.id.textBattery);
         textLocation = (TextView) findViewById(R.id.textLocation);
         scanButton = (Button) findViewById(R.id.scanBtn);
         sendButton = (Button) findViewById(R.id.sendBtn);
         statusText = (TextView) findViewById(R.id.statusText);
         matrixSize = (EditText) findViewById(R.id.matrixSize);
-        infoBox = (TextView) findViewById(R.id.infoText);
-        infoBox.setMovementMethod(ScrollingMovementMethod.getInstance());
-        viewButton.setEnabled(false);
+        connectedDevices = (TextView) findViewById(R.id.connectedDevices);
+        viewReceivedButton.setEnabled(false);
+        viewSentButton.setEnabled(false);
+        viewPerformanceButton.setEnabled(false);
 
         dataConversionSerial = new DataConversionSerial();
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         // method to get the location
         getLastLocation();
 
-        arrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new ArrayList<String>());
-        listViewDevices.setAdapter(arrayAdapter);
+        btArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new ArrayList<String>());
+        listViewDevices.setAdapter(btArrayAdapter);
 
         //Below will enable the bluetooth in the device in case it's disables
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -181,6 +183,7 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    //--------------------------------------------------------------------------------------------------------
     //Get battery level of your own device
     private BroadcastReceiver mBatInfoReceiver = new BroadcastReceiver() {
         @Override
@@ -198,16 +201,15 @@ public class MainActivity extends AppCompatActivity {
         scanButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                temp_count=0;
+                //temp_count=0;
                 statusText.setText("-");
-                stringArrayList = new ArrayList<>();
                 bluetoothAdapter.startDiscovery();
                 IntentFilter intentFilterConnection = new IntentFilter(BluetoothDevice.ACTION_FOUND);
                 registerReceiver(myReceiver, intentFilterConnection);
             }
         });
 
-
+        //initialise slave battery view button
         slaveBatteryButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -231,25 +233,16 @@ public class MainActivity extends AppCompatActivity {
                         batInfo += key + ": " + Integer.toString(value) + "\n\n";
                         info.setText(batInfo);
                     }
-                }
-                else{
+                } else {
                     info.setText("No devices connected");
                 }
 
                 popupWindow.showAtLocation(popupView, Gravity.CENTER, 0, 0);
 
-                // dismiss the popup window when touched
-                popupView.setOnTouchListener(new View.OnTouchListener() {
-                    @Override
-                    public boolean onTouch(View v, MotionEvent event) {
-                        popupWindow.dismiss();
-                        return true;
-                    }
-                });
-
             }
         });
 
+        //initialise slave location view button
         slaveLocationButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -272,21 +265,12 @@ public class MainActivity extends AppCompatActivity {
                         locInfo += key + ": " + value + "\n\n";
                     }
                     info.setText(locInfo);
-                }
-                else{
+                } else {
                     info.setText("No devices connected");
                 }
 
                 popupWindow.showAtLocation(popupView, Gravity.CENTER, 0, 0);
 
-                // dismiss the popup window when touched
-                popupView.setOnTouchListener(new View.OnTouchListener() {
-                    @Override
-                    public boolean onTouch(View v, MotionEvent event) {
-                        popupWindow.dismiss();
-                        return true;
-                    }
-                });
             }
         });
 
@@ -296,7 +280,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 temp_count++;
-                if (temp_count!=1) {
+                if (temp_count > 1) {
                     ConnectSlave connectSlave = new ConnectSlave(btDevices[position]);
                     connectSlave.start();
                     statusText.setText("Connecting");
@@ -313,24 +297,26 @@ public class MainActivity extends AppCompatActivity {
         sendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                //If batter level less than threshold disconnect from all the connected slaves and communicate to slaves to disconnect
+
                 if (battery_level_master < battery_thresh) {
                     statusText.setText("Battery Low can't connect");
-                    for (BluetoothSocket socket : connected_socket) {
+                    for (BluetoothSocket socket : btSocketList) {
                         sendReceive = new SendReceiveHandler(socket);
                         sendReceive.start();
                         try {
-                            sendReceive.write(dataConversionSerial.objectToByteArray((deviceName + ":Battery Level:Batter level is low").toString()));
+                            sendReceive.write(dataConversionSerial.objectToByteArray((deviceName + ":Battery Level:Battery level low").toString()));
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
                     }
-                    connected_socket = new ArrayList<BluetoothSocket>();
+                    btSocketList = new ArrayList<BluetoothSocket>();
                     connection_status = new HashMap<BluetoothSocket, ArrayList<String>>();
                     available_devices = 0;
 
                 } else {
-                    //If matrix size is entered with in the limits of 2 and 100 and if there are available devices master is ready to offload
+                    rowsReceivedSlaveCheck = new HashMap<Integer, String>();
+                    rowSlaveMapping = new HashMap<Integer, String>();
+                    //If matrix size is entered with in the limits of 2 and 12 and if there are available devices master is ready to offload
                     if (matrixSize.getText().toString() != null && !matrixSize.getText().toString().isEmpty() && available_devices > 0 && Integer.parseInt(matrixSize.getText().toString()) <= 12 && Integer.parseInt(matrixSize.getText().toString()) >= 2) {
                         sendButton.setEnabled(false);
                         sendButton.setText("Processing");
@@ -352,8 +338,9 @@ public class MainActivity extends AppCompatActivity {
                         //Start sending messages to available slaves
                         try {
                             battery_level_start_master = battery_level_master;
-                            start_time = System.nanoTime();
+                            start_time_off = System.nanoTime();
                             sendMessages();
+                            viewSentButton.setEnabled(true);
                             result_receive_time_check = 0;
                         } catch (Exception e) {
                             e.printStackTrace();
@@ -375,48 +362,125 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        viewSentButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // inflate the layout of the popup window
+                LayoutInflater inflater = (LayoutInflater)
+                        getSystemService(LAYOUT_INFLATER_SERVICE);
+                View popupView = inflater.inflate(R.layout.popup, null);
+                info = (TextView) popupView.findViewById(R.id.info_popup);
+                info.setSingleLine(false);
+                // create the popup window
+                int width = LinearLayout.LayoutParams.WRAP_CONTENT;
+                int height = LinearLayout.LayoutParams.WRAP_CONTENT;
+                boolean focusable = true; // lets taps outside the popup also dismiss it
+                final PopupWindow popupWindow = new PopupWindow(popupView, width, height, focusable);
+
+                String output_print = "";
+                output_print += "Matrix A: \n";
+                for (int i = 0; i < inputs_A.length; i++) {
+                    output_print += Arrays.toString(inputs_A[i]) + "\n";
+                }
+                output_print += "\n\nMatrix B: \n";
+                for (int i = 0; i < inputs_B.length; i++) {
+                    output_print += Arrays.toString(inputs_B[i]) + "\n";
+                }
+                info.setText(output_print);
+                popupWindow.showAtLocation(popupView, Gravity.CENTER, 0, 0);
+
+            }
+        });
+
+        viewReceivedButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // inflate the layout of the popup window
+                LayoutInflater inflater = (LayoutInflater)
+                        getSystemService(LAYOUT_INFLATER_SERVICE);
+                View popupView = inflater.inflate(R.layout.popup, null);
+                info = (TextView) popupView.findViewById(R.id.info_popup);
+                info.setSingleLine(false);
+                // create the popup window
+                int width = LinearLayout.LayoutParams.WRAP_CONTENT;
+                int height = LinearLayout.LayoutParams.WRAP_CONTENT;
+                boolean focusable = true; // lets taps outside the popup also dismiss it
+                final PopupWindow popupWindow = new PopupWindow(popupView, width, height, focusable);
+                String output_print = "";
+                for (int i = 0; i < output_matrix.length; i++) {
+                    output_print += "Row " + Integer.toString(i) + " from: "+ rowSlaveMapping.get(i) +"\n";
+                    output_print += Arrays.toString(output_matrix[i]) + "\n";
+                }
+
+                info.setText(output_print);
+                popupWindow.showAtLocation(popupView, Gravity.CENTER, 0, 0);
+
+            }
+        });
+
+        viewPerformanceButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // inflate the layout of the popup window
+                LayoutInflater inflater = (LayoutInflater)
+                        getSystemService(LAYOUT_INFLATER_SERVICE);
+                View popupView = inflater.inflate(R.layout.popup, null);
+                info = (TextView) popupView.findViewById(R.id.info_popup);
+                info.setSingleLine(false);
+                // create the popup window
+                int width = LinearLayout.LayoutParams.WRAP_CONTENT;
+                int height = LinearLayout.LayoutParams.WRAP_CONTENT;
+                boolean focusable = true; // lets taps outside the popup also dismiss it
+                final PopupWindow popupWindow = new PopupWindow(popupView, width, height, focusable);
+                String output_print = "";
+                int battery_drop_offloading_master = battery_level_start_master - battery_level_master;
+                output_print += "Time taken with offloading (ns)= " + (finish_time_off - start_time_off) + "\n";
+                output_print += "Time taken without offloading (ns)= " + (finish_time_master - start_time_master) + "\n";
+                output_print += "\nBattery Level drop at Master:" + battery_drop_offloading_master + "\n";
+                output_print += "\nBattery Level drop without offloading at Master:" + (battery_level_start_master - battery_level_master) + "\n";
+                output_print += "\nBattery Levels drop at slave:\n";
+                for (String server_device : battery_slave_delta.keySet()) {
+                    output_print += server_device + " : " + battery_slave_delta.get(server_device) + "\n";
+                }
+
+                info.setText(output_print);
+                popupWindow.showAtLocation(popupView, Gravity.CENTER, 0, 0);
+            }
+        });
+
     }
 
-
     //--------------------------------------------------------------------------------------------------------
-    /*
-    Updates listview with available bluetooth devices
-     */
+    //Update listview with available bluetooth devices
+
     BroadcastReceiver myReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
             if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                if (device.getName() != null) {
-                    int count = 0;
-                    for (int i = 0; i < stringArrayList.size(); i++) {
-                        if (!(stringArrayList.get(i).getName()).equals(device.getName())) {
-                            count++;
-                        }
+                if (device.getName() == null) {
+                    return;
+                } else {
+                    if (!(btDeviceNameList.contains(device))) {
+                        btDeviceNameList.add(device);
                     }
-                    if (count == stringArrayList.size()) {
-                        stringArrayList.add(device);
-                    }
-
-                    strings = new String[stringArrayList.size()];
-                    btDevices = new BluetoothDevice[stringArrayList.size()];
+                    strings = new String[btDeviceNameList.size()];
+                    btDevices = new BluetoothDevice[btDeviceNameList.size()];
                     int index = 0;
 
-                    if (stringArrayList.size() > 0) {
-                        for (BluetoothDevice device1 : stringArrayList) {
+                    if (btDeviceNameList.size() > 0) {
+                        for (BluetoothDevice device1 : btDeviceNameList) {
                             btDevices[index] = device1;
                             strings[index] = device1.getName();
                             index++;
                         }
 
-                        //arrayAdapter = new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_list_item_1, strings);
-                        arrayAdapter.clear();
-                        arrayAdapter.addAll(strings);
-                        arrayAdapter.notifyDataSetChanged();
+                        btArrayAdapter.clear();
+                        btArrayAdapter.addAll(strings);
+                        btArrayAdapter.notifyDataSetChanged();
                     }
                 }
-
             }
         }
     };
@@ -441,17 +505,17 @@ public class MainActivity extends AppCompatActivity {
         //If battery level less than threshold disconnect from all the connected slaves and communicate to slaves to disconnect
         if (battery_level_master < battery_thresh) {
             statusText.setText("Master battery low, can't connect");
-            for (BluetoothSocket socket1 : connected_socket) {
+            for (BluetoothSocket socket1 : btSocketList) {
                 sendReceive = new SendReceiveHandler(socket1);
                 sendReceive.start();
                 try {
-                    sendReceive.write(dataConversionSerial.objectToByteArray((deviceName + ":Battery Level:Batter level is low").toString()));
+                    sendReceive.write(dataConversionSerial.objectToByteArray((deviceName + ":Battery Level:Battery level low").toString()));
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
             //refresh everything
-            connected_socket = new ArrayList<BluetoothSocket>();
+            btSocketList = new ArrayList<BluetoothSocket>();
             connection_status = new HashMap<BluetoothSocket, ArrayList<String>>();
             available_devices = 0;
             return;
@@ -459,21 +523,21 @@ public class MainActivity extends AppCompatActivity {
         //Checks if there are any free slaves to offload
         if (available_devices > 0) {
 
-            for (BluetoothSocket socket : connected_socket) {
+            for (BluetoothSocket socket : btSocketList) {
                 //sends if there are rows left to send
                 if (socket != null && connection_status.get(socket).get(1) == "free" && received_rows != total_rows && rows_left.size() > 0) {
                     try {
-                            sendReceive = new SendReceiveHandler(socket);
-                            sendReceive.start();
-                            ArrayList<String> temp = connection_status.get(socket);
-                            temp.set(1, "busy");
-                            available_devices--;
-                            connection_status.put(socket, temp);
-                            int temp_row = rows_left.get(0);
-                            rows_left.remove(0);
-                            row_sent_time.put(temp_row, System.nanoTime());
-                            serialDecoder request = new serialDecoder(inputs_A[temp_row], inputs_B, temp_row);
-                            sendReceive.write(dataConversionSerial.objectToByteArray(request));
+                        sendReceive = new SendReceiveHandler(socket);
+                        sendReceive.start();
+                        ArrayList<String> temp = connection_status.get(socket);
+                        temp.set(1, "busy");
+                        available_devices--;
+                        connection_status.put(socket, temp);
+                        int temp_row = rows_left.get(0);
+                        rows_left.remove(0);
+                        row_sent_time.put(temp_row, System.nanoTime());
+                        serialEncoder request = new serialEncoder(inputs_A[temp_row], inputs_B, temp_row);
+                        sendReceive.write(dataConversionSerial.objectToByteArray(request));
 
                     } catch (IOException e) {
                         e.printStackTrace();
@@ -491,7 +555,7 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             if (result_receive_time_check == 0 && received_rows != total_rows) {
                 for (int row_number : row_sent_time.keySet()) {
-                    if (!rows_left.contains(row_number) && !rows_received_from_slave.containsKey(row_number)) {
+                    if (!rows_left.contains(row_number) && !rowsReceivedSlaveCheck.containsKey(row_number)) {
                         long current_time = System.nanoTime();
                         if (TimeUnit.NANOSECONDS.toMillis(current_time - row_sent_time.get(row_number)) > 5000) {
                             System.out.println("Row number not sent:" + row_number);
@@ -529,7 +593,7 @@ public class MainActivity extends AppCompatActivity {
                         available_devices--;
                     }
                     connection_status.remove(bluetoothSocket);
-                    connected_socket.remove(bluetoothSocket);
+                    btSocketList.remove(bluetoothSocket);
                     location_slave_initial.remove(bluetoothSocket);
                     battery_slave_initial.remove(bluetoothSocket);
 
@@ -545,11 +609,11 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             byte[] buffer = new byte[102400];
             int bytes;
-            while(battery_level_master >= battery_thresh) {
+            while (battery_level_master >= battery_thresh) {
                 try {
                     if (connection_status.containsKey(bluetoothSocket)) {
                         bytes = inputStream.read(buffer);
-                        handler.obtainMessage(STATE_MESSAGE_RECEIVED, bytes, -1, buffer).sendToTarget();
+                        handler.obtainMessage(MESSAGE_RECEIVED, bytes, -1, buffer).sendToTarget();
                     }
 
                 } catch (IOException e) {
@@ -558,7 +622,7 @@ public class MainActivity extends AppCompatActivity {
                             available_devices--;
                         }
                         connection_status.remove(bluetoothSocket);
-                        connected_socket.remove(bluetoothSocket);
+                        btSocketList.remove(bluetoothSocket);
                         location_slave_initial.remove(bluetoothSocket);
                         battery_slave_initial.remove(bluetoothSocket);
                     }
@@ -576,7 +640,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (IOException e) {
                 e.printStackTrace();
                 Message message = Message.obtain();
-                message.what = STATE_CONNECTION_FAILED;
+                message.what = CONNECTION_FAILED;
                 handler.sendMessage(message);
             }
         }
@@ -610,13 +674,13 @@ public class MainActivity extends AppCompatActivity {
                 if (battery_level_master >= battery_thresh) {
                     socket.connect();
                     Message message = Message.obtain();
-                    message.what = STATE_CONNECTED;
+                    message.what = CONNECTED;
                     sendReceive = new SendReceiveHandler(socket);
                     sendReceive.start();
                     handler.sendMessage(message);
-                    connected_socket.add(socket);
+                    btSocketList.add(socket);
 
-                    //if it's a new connection, add to
+                    //if it's a new connection, add to available devices
                     if (!connection_status.containsKey(socket)) {
                         ArrayList<String> temp = new ArrayList<String>();
                         temp.add(device.getName());
@@ -626,7 +690,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 } else {
                     Message message = Message.obtain();
-                    message.what = STATE_BATTERY_LOW;
+                    message.what = BATTERY_LOW;
                     handler.sendMessage(message);
                     listViewDevices.setAdapter(null);
                 }
@@ -634,7 +698,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (IOException e) {
                 e.printStackTrace();
                 Message message = Message.obtain();
-                message.what = STATE_CONNECTION_FAILED;
+                message.what = CONNECTION_FAILED;
                 handler.sendMessage(message);
             }
         }
@@ -663,25 +727,27 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public boolean handleMessage(@NonNull Message msg) {
             switch (msg.what) {
-                case STATE_CONNECTING:
+                case CONNECTING:
                     statusText.setText("Connecting");
                     break;
-                case STATE_CONNECTED:
+                case CONNECTED:
                     statusText.setText("Connected");
                     break;
-                case STATE_CONNECTION_FAILED:
+                case CONNECTION_FAILED:
                     statusText.setText("Connection Failed");
                     break;
-                case STATE_DISCONNECTED:
+                case DISCONNECTED:
                     statusText.setText("Disconnected");
                     break;
-
+                case BATTERY_LOW:
+                    statusText.setText("Battery low Can't connect");
+                    break;
                 //received message from slave
-                case STATE_MESSAGE_RECEIVED:
-                    //if master battery is low, tell all slave devices battery is low and disconnect all
+                case MESSAGE_RECEIVED:
+                    //disconnect all bt devices if master battery is low
                     if (battery_level_master < battery_thresh) {
                         statusText.setText("Master battery low can't connect");
-                        for (BluetoothSocket socket : connected_socket) {
+                        for (BluetoothSocket socket : btSocketList) {
                             sendReceive = new SendReceiveHandler(socket);
                             sendReceive.start();
                             try {
@@ -690,7 +756,7 @@ public class MainActivity extends AppCompatActivity {
                                 e.printStackTrace();
                             }
                         }
-                        connected_socket = new ArrayList<BluetoothSocket>();
+                        btSocketList = new ArrayList<BluetoothSocket>();
                         connection_status = new HashMap<BluetoothSocket, ArrayList<String>>();
                         available_devices = 0;
                     }
@@ -699,79 +765,39 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         //message received from slave
                         Object o = dataConversionSerial.byteArrayToObject(readBuff);
-                        //if object is of type string normal message related to connection status or battery level is received by master from slave
                         if (o instanceof String) {
                             String tempMsg = (String) o;
                             String[] messages = tempMsg.split(":");
-                            //If battery level low message is being received from slave disconnect to that slave and remove that slave from connected devices
-                            if (messages[2].equals("Batter level is low")) {
-                                ArrayList<String> temp = new ArrayList<>();
-                                ArrayList<String> temp1 = new ArrayList<>();
-                                temp.add(messages[0]);
-                                temp.add("busy");
-                                temp1.add(messages[0]);
-                                temp1.add("free");
-                                for (BluetoothSocket key : connection_status.keySet()) {
-                                    if (temp.equals(connection_status.get(key)) || temp1.equals(connection_status.get(key))) {
-                                        available_devices--;
-                                        connected_socket.remove(key);
-                                        connection_status.remove(key);
-                                        location_slave_initial.remove(key);
-                                        battery_slave_initial.remove(key);
-                                        Toast.makeText(getApplicationContext(), "Removing device" + connected_socket.size(), Toast.LENGTH_LONG).show();
-                                        battery_status += "Battery level is low at " + messages[0] + " hence disconnected" + "\n";
-                                        infoBox.setText(battery_status);
-                                        break;
-                                    }
-                                }
+
+                            //If slave battery level is low - disconnect and remove slave
+                            if (messages[2].equals("Battery level low")) {
+                                available_devices--;
+                                btSocketList.remove(messages[0]);
+                                connection_status.remove(messages[0]);
+                                location_slave_initial.remove(messages[0]);
+                                battery_slave_initial.remove(messages[0]);
+                                Toast.makeText(getApplicationContext(), messages[0] + " has low battery. Can't offload", Toast.LENGTH_LONG).show();
+                                statusText.setText("Disconnected");
+                                break;
                             }
 
                             //If slave denied offloading
-                            else if (messages[1].equals("Denied")){
-                                ArrayList<String> temp = new ArrayList<>();
-                                ArrayList<String> temp1 = new ArrayList<>();
-                                temp.add(messages[0]);
-                                temp.add("busy");
-                                temp1.add(messages[0]);
-                                temp1.add("free");
-                                for (BluetoothSocket key : connection_status.keySet()) {
-                                    if (temp.equals(connection_status.get(key)) || temp1.equals(connection_status.get(key))) {
-                                        available_devices--;
-                                        connected_socket.remove(key);
-                                        connection_status.remove(key);
-                                        location_slave_initial.remove(key);
-                                        battery_slave_initial.remove(key);
-                                        Toast.makeText(getApplicationContext(),messages[0]+" denied offloading", Toast.LENGTH_LONG).show();
-                                        statusText.setText("Disconnected");
-                                        break;
-                                    }
-                                }
+                            else if (messages[1].equals("Denied")) {
+                                available_devices--;
+                                btSocketList.remove(messages[0]);
+                                connection_status.remove(messages[0]);
+                                location_slave_initial.remove(messages[0]);
+                                battery_slave_initial.remove(messages[0]);
+                                Toast.makeText(getApplicationContext(), messages[0] + " denied offloading", Toast.LENGTH_LONG).show();
+                                statusText.setText("Disconnected");
+                                break;
                             }
 
-                            //if slave has sent a msg to master asking it to set it to free master will set the availability status of slave to free.
-                            else if (messages[2].equals("SetMeFree")) {
-                                ArrayList<String> temp = new ArrayList<>();
-                                temp.add(messages[0]);
-                                temp.add("busy");
-                                for (BluetoothSocket key : connection_status.keySet()) {
-                                    if (temp.equals(connection_status.get(key))) {
-                                        temp.set(1, "free");
-                                        System.out.println("I am set to free");
-                                        available_devices++;
-                                        System.out.println("Available devices count" + available_devices);
-                                        connection_status.put(key, temp);
-                                        break;
-                                    }
-                                }
-
-                            }
-                                /*
-                                Otherwise slave has sent just it's battery level stats to master
-                                 */
+                            //Otherwise slave has sent just it's battery level stats to master
                             else {
                                 //if the battery is not in the Map already
                                 if (!battery_slave_initial.containsKey(messages[0])) {
-                                    infoBox.setText("Connected to: "+ messages[0]);
+
                                     //If slave is connecting to master for the first time slave will send it's battery level information and GPS location to master
                                     if (messages.length > 3) {
                                         Double dist = calc_distance(parseDouble(myLatitude), Double.parseDouble(myLongitude), Double.parseDouble(messages[4].split(",")[0]), Double.parseDouble(messages[4].split(",")[1]));
@@ -780,6 +806,14 @@ public class MainActivity extends AppCompatActivity {
                                         if (dist <= 0.2) {
                                             battery_slave_initial.put(messages[0], Integer.parseInt(messages[2]));
                                             location_slave_initial.put(messages[0], messages[4]);
+                                            Toast.makeText(getApplicationContext(),"Connected to: " + messages[0] ,Toast.LENGTH_LONG).show();
+                                            String tempBtNames="";
+                                            for (BluetoothSocket device1 : connection_status.keySet()) {
+                                                tempBtNames+=connection_status.get(device1).get(0);
+                                                tempBtNames+=", ";
+                                            }
+                                            tempBtNames=tempBtNames.substring(0,tempBtNames.length()-2);
+                                            connectedDevices.setText(tempBtNames);
                                         }
                                         //otherwise disconnect from slave
                                         else {
@@ -794,9 +828,9 @@ public class MainActivity extends AppCompatActivity {
                                                         e.printStackTrace();
                                                     }
                                                     statusText.setText("Disconnected");
-                                                    Toast.makeText(getApplicationContext(), "Device too far....so disconnecting", Toast.LENGTH_LONG).show();
+                                                    Toast.makeText(getApplicationContext(), "Slave device too far. Disconnecting", Toast.LENGTH_LONG).show();
                                                     connection_status.remove(socket);
-                                                    connected_socket.remove(socket);
+                                                    btSocketList.remove(socket);
                                                     location_slave_initial.remove(socket);
                                                     battery_slave_initial.remove(socket);
                                                     available_devices--;
@@ -805,13 +839,11 @@ public class MainActivity extends AppCompatActivity {
                                         }
 
                                         System.out.println(dist);
-                                    }
-                                    //If slave is connecting to master for the first time slave will send it's battery level information and it hasn't sent it's GPS location
-                                    else {
+                                    } else {
                                         battery_slave_initial.put(messages[0], Integer.parseInt(messages[2]));
                                     }
                                 }
-                                //otherwise slave is sending it's battery stats post completion of offloading so that master can check the batter level drop at slaves
+                                //battery stats of slave post offloading
                                 if (battery_slave_initial.containsKey(messages[0]) && received_rows == total_rows) {
                                     battery_slave_delta.put(messages[0], Math.abs(battery_slave_initial.get(messages[0]) - Integer.parseInt(messages[2])));
                                 }
@@ -819,18 +851,15 @@ public class MainActivity extends AppCompatActivity {
                         }
                         //Master has received the matrix multiplication row result as response from slave
                         else {
-                            serialEncoder tempMsg = (serialEncoder) o;
+                            serialDecoder tempMsg = (serialDecoder) o;
                             ArrayList<String> temp = new ArrayList<>();
-                            //if output result doesn't contain the row result sent by slave it will be stored in output result
-                            if (!rows_received_from_slave.containsKey(tempMsg.getRow())) {
-                                statusTextContent += "Received row " + tempMsg.getRow() + "from: " + tempMsg.getDeviceName() +  "\n";
+                            if (!rowsReceivedSlaveCheck.containsKey(tempMsg.getRow())) {
+                                statusTextContent += "Received row " + tempMsg.getRow() + "from: " + tempMsg.getDeviceName() + "\n";
 
-                                //add here
-
-                                //infoBox.setText(statusTextContent.trim());
                                 output_matrix[tempMsg.getRow()] = tempMsg.getrowResult();
                                 received_rows++;
-                                rows_received_from_slave.put(tempMsg.getRow(), "received");
+                                rowsReceivedSlaveCheck.put(tempMsg.getRow(), "received");
+                                rowSlaveMapping.put(tempMsg.getRow(), tempMsg.getDeviceName());
                             }
                             //Once receiving result from slave master will set slaves availability status to free
                             temp.add(tempMsg.getDeviceName());
@@ -844,86 +873,58 @@ public class MainActivity extends AppCompatActivity {
                                     break;
                                 }
                             }
-                                /*if master has received results of all the rows it will calculate the matrix multiplication without offloading at its end display below stats
-                                    .  Output Result
-                                    .  Battery level drop at servers
-                                    .  Battery level drop at master because of offloading
-                                    .  Time taken for matrix multiplication by offloading in nano seconds
-                                    .  Time taken for matrix multiplication without offloading in nano seconds
-                                    .  Battery level drop at master for matrix multiplication without offloading
-                                 */
-                            if (rows_received_from_slave.size() == total_rows) {
-                                viewButton.setEnabled(false);
-                                finish_time = System.nanoTime();
+
+                            //if all rows have been received
+                            if (rowsReceivedSlaveCheck.size() == total_rows) {
+                                viewReceivedButton.setEnabled(true);
+                                viewPerformanceButton.setEnabled(true);
+                                finish_time_off = System.nanoTime();
                                 result_receive_time_check = 1;
                                 sendButton.setEnabled(true);
                                 sendButton.setText("Send Matrix");
 
                                 offloadingHandler.removeCallbacks(offloadingReceiver);
-                                int battery_drop_offloading_master = battery_level_start_master - battery_level_master;
-                                for (BluetoothSocket socket : connected_socket) {
+
+                                for (BluetoothSocket socket : btSocketList) {
                                     sendReceive = new SendReceiveHandler(socket);
                                     sendReceive.start();
                                     sendReceive.write(dataConversionSerial.objectToByteArray(deviceName + ":Battery Level:Send Battery Level"));
                                 }
 
-                                //change here
-
-                                String output_print = "[";
-                                for (int i = 0; i < output_matrix.length; i++) {
-                                    if (i != output_matrix.length - 1) {
-                                        output_print += Arrays.toString(output_matrix[i]) + "\n";
-                                    } else {
-                                        output_print += Arrays.toString(output_matrix[i]);
-                                    }
-                                }
-                                output_print += "]\nBattery Levels drop at Slaves:\n";
-                                for (String server_device : battery_slave_delta.keySet()) {
-                                    output_print += server_device + " : " + battery_slave_delta.get(server_device) + "\n";
-                                }
-                                output_print += "Battery Level drop at Master:" + battery_drop_offloading_master + "\n";
-                                output_print += "Time taken by MobOff(ns)= " + (finish_time - start_time) + "\n";
-
-                                start_time = System.nanoTime();
+                                //calculating matrix at master to check time difference
+                                start_time_master = System.nanoTime();
                                 battery_level_start_master = battery_level_master;
-                                int[][] output_Array_master = new int[total_rows][total_rows];
+                                int[][] outputCalcAtMaster = new int[total_rows][total_rows];
                                 for (int i = 0; i < total_rows; i++) {
                                     for (int j = 0; j < total_rows; j++) {
-                                        output_Array_master[i][j] = 0;
+                                        outputCalcAtMaster[i][j] = 0;
                                         for (int k = 0; k < total_rows; k++) {
-                                            output_Array_master[i][j] += inputs_A[i][k] * inputs_B[k][j];
+                                            outputCalcAtMaster[i][j] += inputs_A[i][k] * inputs_B[k][j];
                                         }
                                     }
                                 }
-                                finish_time = System.nanoTime();
+                                finish_time_master = System.nanoTime();
 
-                                output_print += "Time taken without MobOff(ns)= " + (finish_time - start_time) + "\n";
-                                //output_print += "Battery Level drop without offloading at Master:" + (battery_level_start_master - battery_level_master);
-                                //Set all the variables to null so that master will be available for next offloading
+                                //refresh
                                 battery_slave_delta = new HashMap<String, Integer>();
-                                rows_received_from_slave = new HashMap<Integer, String>();
                                 rows_left = new ArrayList<Integer>();
                                 row_sent_time = new HashMap<Integer, Long>();
                                 statusTextContent = "";
                                 battery_status = "";
 
-                                //infoBox.setText("Output received from slaves: \n" + output_print.trim());
+                                Toast.makeText(getApplicationContext(),"All rows received from slaves", Toast.LENGTH_LONG).show();
 
                             }
                             //if there are rows that are yet to be calculated send that rows to available devices
-                            if (result_receive_time_check == 0 && available_devices > 0 && connected_socket.size() > 0 && received_rows != total_rows && battery_level_master >= battery_thresh) {
+                            if (result_receive_time_check == 0 && available_devices > 0 && btSocketList.size() > 0 && received_rows != total_rows && battery_level_master >= battery_thresh) {
                                 sendMessages();
                             }
                         }
-
                     } catch (IOException e) {
                         e.printStackTrace();
                     } catch (ClassNotFoundException e) {
                         e.printStackTrace();
                     }
-                    break;
-                case STATE_BATTERY_LOW:
-                    statusText.setText("Battery low Can't connect");
                     break;
             }
             return true;
@@ -954,7 +955,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
             } else {
-                Toast.makeText(this, "Please turn on" + " your location...", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Please turn on your location", Toast.LENGTH_LONG).show();
                 Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
                 startActivity(intent);
             }
@@ -1023,4 +1024,3 @@ public class MainActivity extends AppCompatActivity {
 
 
 }
-

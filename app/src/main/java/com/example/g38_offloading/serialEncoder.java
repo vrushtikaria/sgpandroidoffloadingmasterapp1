@@ -4,43 +4,29 @@ import java.io.Serializable;
 
 public class serialEncoder implements Serializable {
 
-    private int[] rowResult;
+    private static final long serialVersionUID = 6529685098267757691L;
+    private int[] a;
+    private int[][] b;
     private int row;
-    private String deviceName;
 
-    //constructor
-    public serialEncoder(int[] rowResult, int row, String deviceName) {
-        this.setrowResult(rowResult);
+    //initialization
+    public serialEncoder(int[] a, int[][] b, int row) {
+        this.setA(a);
+        this.setB(b);
         this.setRow(row);
-        this.setDeviceName(deviceName);
     }
 
-    //getter methods
-    public int[] getrowResult() {
-        return rowResult;
+    //getter and setters
+
+    public void setA(int[] a) {
+        this.a = a;
     }
 
-    public void setrowResult(int[] rowResult) {
-        this.rowResult = rowResult;
+    public void setB(int[][] b) {
+        this.b = b;
     }
-
-
-
-    public int getRow() {
-        return row;
-    }
-
-    //setter methods
 
     public void setRow(int row) {
         this.row = row;
-    }
-
-    public String getDeviceName() {
-        return deviceName;
-    }
-
-    public void setDeviceName(String deviceName) {
-        this.deviceName = deviceName;
     }
 }

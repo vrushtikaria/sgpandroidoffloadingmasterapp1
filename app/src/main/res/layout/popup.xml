@@ -1,25 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="wrap_content"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="400dp"
     android:layout_height="wrap_content"
-    android:background="@drawable/border_shadow">
+    android:background="@drawable/border_shadow"
+    android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/info_popup"
-        android:layout_width="292dp"
-        android:layout_height="223dp"
-        android:layout_centerInParent="true"
-        android:layout_marginStart="30dp"
-        android:layout_marginTop="30dp"
-        android:layout_marginEnd="30dp"
-        android:layout_marginBottom="30dp"
-        android:singleLine="false"
-        android:text="No device data currently"
-        android:textColor="#000000"
-        android:textColorHighlight="#000000"
-        android:textSize="16sp"
-        android:visibility="visible"
-        tools:visibility="visible" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
 
-</RelativeLayout>
+        <TextView
+            android:id="@+id/info_popup"
+            android:layout_width="300dp"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="30dp"
+            android:layout_marginTop="30dp"
+            android:layout_marginEnd="30dp"
+            android:layout_marginBottom="30dp"
+            android:singleLine="false"
+            android:text="No device data currently"
+            android:textColor="#000000"
+            android:textColorHighlight="#000000"
+            android:textSize="16sp"
+            android:visibility="visible" />
+    </LinearLayout>
+
+</ScrollView>
