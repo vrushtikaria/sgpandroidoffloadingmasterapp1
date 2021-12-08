@@ -65,7 +65,7 @@ import java.util.concurrent.TimeUnit;
 public class MainActivity extends AppCompatActivity {
 
     //Buttons, lists and other elements
-    Button scanButton, sendButton, slaveBatteryButton, slaveLocationButton, viewReceivedButton, viewSentButton, viewPerformanceButton;
+    Button scanButton, sendButton, slaveBatteryButton, slaveLocationButton, viewReceivedButton, viewSentButton, viewPerformanceButton, disconnectAllButton;
     Spinner listViewDevices;
     TextView statusText, textLocation, textBattery, info, connectedDevices;
     String statusTextContent = "";
@@ -152,6 +152,7 @@ public class MainActivity extends AppCompatActivity {
         listViewDevices = (Spinner) findViewById(R.id.listViewDevices);
         slaveBatteryButton = (Button) findViewById(R.id.slaveBatteryButton);
         slaveLocationButton = (Button) findViewById(R.id.slaveLocationButton);
+        disconnectAllButton = (Button) findViewById(R.id.discAllButton);
         viewReceivedButton = (Button) findViewById(R.id.viewBtnReceived);
         viewSentButton = (Button) findViewById(R.id.viewBtnSent);
         viewPerformanceButton = (Button) findViewById(R.id.viewBtnPerformance);
@@ -165,6 +166,7 @@ public class MainActivity extends AppCompatActivity {
         viewReceivedButton.setEnabled(false);
         viewSentButton.setEnabled(false);
         viewPerformanceButton.setEnabled(false);
+        disconnectAllButton.setEnabled(false);
 
         dataConversionSerial = new DataConversionSerial();
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
@@ -296,6 +298,27 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
 
+            }
+        });
+
+        disconnectAllButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                statusText.setText("-");
+                for (BluetoothSocket socket : btSocketList) {
+                    sendReceive = new SendReceiveHandler(socket);
+                    sendReceive.start();
+                    try {
+                        //note that it can be any message, for now we're just using the battery level low message
+                        sendReceive.write(dataConversionSerial.objectToByteArray((deviceName + ":Battery Level: Battery level is low").toString()));
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+                btSocketList = new ArrayList<BluetoothSocket>();
+                connection_status = new HashMap<BluetoothSocket, ArrayList<String>>();
+                available_devices = 0;
+                disconnectAllButton.setEnabled(false);
             }
         });
 
@@ -495,6 +518,7 @@ public class MainActivity extends AppCompatActivity {
     //GENERATING AND SENDING MATRICES BELOW
 
     //This function generate matrix of given size
+    @NonNull
     private int[][] generateRandom(int rc, int cc) {
         Random rand = new Random();
         int[][] random_array = new int[rc][cc];
@@ -849,6 +873,7 @@ public class MainActivity extends AppCompatActivity {
                                             }
                                             tempBtNames=tempBtNames.substring(0,tempBtNames.length()-2);
                                             connectedDevices.setText(tempBtNames);
+                                            disconnectAllButton.setEnabled(true);
                                         }
                                         //otherwise disconnect from slave
                                         else {
